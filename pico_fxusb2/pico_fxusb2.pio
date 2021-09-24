@@ -1,20 +1,26 @@
 .program pico_fxusb2
 
+.define cs 6
+.define clk 7
+
 public bitloop0:
-    wait 1 pin 8
-    wait 0 pin 8; falling edge of CS
-    wait 1 pin 9; riging edge of clk
+    wait 1 gpio cs; 直接GPIO番号を指定する
+    wait 0 gpio cs; falling edge of CS
+    wait 1 gpio clk; riging edge of clk
     in pins, 8; get 8 parallel usb data
-    push
-    wait 0 pin 9; falling edge of clk
+    wait 0 gpio clk; falling edge of clk
     
 
 .wrap_target
 bitloop1:
-    wait 1 pin 9; riging edge of clk
+    wait 1 gpio clk; riging edge of clk
     in pins, 8; get 8 parallel usb data
     push
-    wait 0 pin 9; falling edge of clk
+    wait 0 gpio clk; falling edge of clk
+
+    wait 1 gpio clk; riging edge of clk
+    in pins, 8; get 8 parallel usb data
+    wait 0 gpio clk; falling edge of clk
 .wrap
     
 
@@ -23,7 +29,7 @@ bitloop1:
 static inline void pico_fxusb2_program_init(PIO pio, uint sm, uint offset, uint pin_base) {
     pio_sm_config sm_config = pico_fxusb2_program_get_default_config(offset);
 
-    sm_config_set_in_pins(&sm_config, pin_base);
+    sm_config_set_in_pins(&sm_config, pin_base+2);
 
     pio_sm_set_consecutive_pindirs(pio, sm, pin_base, 10, false);
 
@@ -32,9 +38,7 @@ static inline void pico_fxusb2_program_init(PIO pio, uint sm, uint offset, uint 
         pio_gpio_init(pio, pin_base + i);
     }
 
-    sm_config_set_jmp_pin(&sm_config, pin_base+8);
-
-    sm_config_set_in_shift(&sm_config, false, false, 8);
+    sm_config_set_in_shift(&sm_config, false, false, 16);
 
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_RX);
 
@@ -51,27 +55,32 @@ static inline void pico_fxusb2_program_init(PIO pio, uint sm, uint offset, uint 
 .program pico_fxusb2_24bit
 
 .define public COUNT 2
+.define cs 6
+.define clk 7
 
 public bitloop0:
-    wait 1 pin 8
-    wait 0 pin 8; falling edge of CS
-    wait 1 pin 9; riging edge of clk
-    in pins, 8; get 8 parallel usb data
-    push
-    set x, (COUNT-1)
-    wait 0 pin 9; falling edge of clk
+    wait 1 gpio cs
+    wait 0 gpio cs; falling edge of CS
+    in null, 8;
     
+.wrap_target
 bitloop1:
-    wait 1 pin 9; riging edge of clk
+    wait 1 gpio clk; riging edge of clk
     in pins, 8; get 8 parallel usb data
+    wait 0 gpio clk; falling edge of clk
     push
-    wait 0 pin 9; falling edge of clk
-    jmp x-- bitloop1
+    set x, 1
 
-push0:
+bitloop2:
+    wait 1 gpio clk; riging edge of clk
+    in pins, 8; get 8 parallel usb data
+    wait 0 gpio clk; falling edge of clk
+    jmp x-- bitloop2
+
     push
-    set x, COUNT
-    jmp bitloop1
+
+    in null, 8
+.wrap
     
 
 % c-sdk {
@@ -79,7 +88,7 @@ push0:
 static inline void pico_fxusb2_24bit_program_init(PIO pio, uint sm, uint offset, uint pin_base) {
     pio_sm_config sm_config = pico_fxusb2_24bit_program_get_default_config(offset);
 
-    sm_config_set_in_pins(&sm_config, pin_base);
+    sm_config_set_in_pins(&sm_config, pin_base+2);
 
     pio_sm_set_consecutive_pindirs(pio, sm, pin_base, 10, false);
 
@@ -88,9 +97,7 @@ static inline void pico_fxusb2_24bit_program_init(PIO pio, uint sm, uint offset,
         pio_gpio_init(pio, pin_base + i);
     }
 
-    sm_config_set_jmp_pin(&sm_config, pin_base+8);
-
-    sm_config_set_in_shift(&sm_config, false, false, 8);
+    sm_config_set_in_shift(&sm_config, false, false, 16);
 
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_RX);
 
@@ -105,15 +112,17 @@ static inline void pico_fxusb2_24bit_program_init(PIO pio, uint sm, uint offset,
 
 .program pico_fxusb2_communication
 
+.define clk 4
+
 public send_data:
     pull
     set x, 31
     set pins, 1
 
 send_data_loop:
-    wait 0 pin 1; falling edge of clk
+    wait 0 gpio clk; falling edge of clk
     out pins, 1
-    wait 1 pin 1; riging edge of clk
+    wait 1 gpio clk; riging edge of clk
     in pins, 1; get data
     jmp x-- send_data_loop
 
@@ -126,8 +135,8 @@ public receive_data:
     set x, 7
 
 receive_data_loop:
-    wait 0 pin 1; falling edge of clk
-    wait 1 pin 1; falling edge of clk
+    wait 0 gpio clk; falling edge of clk
+    wait 1 gpio clk; rising edge of clk
     in pins, 1; get data
     jmp x-- receive_data_loop
 
@@ -142,14 +151,14 @@ receive_data_finish:
 static inline void pico_fxusb2_communication_program_init(PIO pio, uint sm, uint offset, uint pin_base) {
     pio_sm_config sm_config = pico_fxusb2_communication_program_get_default_config(offset);
 
-    sm_config_set_out_pins(&sm_config, pin_base + 2, 1);
-    sm_config_set_set_pins(&sm_config, pin_base + 2, 1);
-    sm_config_set_in_pins(&sm_config, pin_base);
+    sm_config_set_out_pins(&sm_config, pin_base + 0, 1);
+    sm_config_set_set_pins(&sm_config, pin_base + 0, 1);
+    sm_config_set_in_pins(&sm_config, pin_base + 2);
 
 
-    // pin 0 : data in, pin 1 : clock in, pin 2 : data out
-    pio_sm_set_consecutive_pindirs(pio, sm, pin_base + 2, 1, true);
-    pio_sm_set_consecutive_pindirs(pio, sm, pin_base, 2, false);
+    // pin 2 : data in, pin 1 : clock in, pin 0 : data out
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_base + 0, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_base + 1, 2, false);
 
     for (int i = 0; i < 3; i++)
     {

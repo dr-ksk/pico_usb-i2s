@@ -81,7 +81,7 @@ void __isr __time_critical_func(dma_handler0)()
             dma_channel_configure(dma_channel[0], &dma_config[0],
                                   &usb_buf[0][0], // dst
                                   &pio->rxf[sm],  // src
-                                  usb_depth,      // transfer count
+                                  usb_depth/2,      // transfer count
                                   false           // start immediately
             );
         }
@@ -183,9 +183,10 @@ void pico_fxusb2_setup()
     // USB DMA channel 0
     {
         dma_config[0] = dma_channel_get_default_config(dma_channel[0]);
-        channel_config_set_transfer_data_size(&dma_config[0], DMA_SIZE_8);
+        channel_config_set_transfer_data_size(&dma_config[0], DMA_SIZE_16);
         channel_config_set_read_increment(&dma_config[0], false);
         channel_config_set_write_increment(&dma_config[0], true);
+        channel_config_set_bswap(&dma_config[0], true);
 
         channel_config_set_dreq(&dma_config[0], pio_get_dreq(pio, sm, false));
         channel_config_set_chain_to(&dma_config[0], dma_channel[1]);
@@ -199,7 +200,7 @@ void pico_fxusb2_setup()
             dma_channel_configure(dma_channel[0], &dma_config[0],
                                   &usb_buf[0][1], // dst
                                   &pio->rxf[sm],  // src
-                                  usb_depth - 3,  // transfer count 24bit
+                                  usb_depth/2 - 1,  // transfer count 24bit
                                   true            // start immediately
             );
         }
@@ -208,7 +209,7 @@ void pico_fxusb2_setup()
             dma_channel_configure(dma_channel[0], &dma_config[0],
                                   &usb_buf[0][1], // dst
                                   &pio->rxf[sm],  // src
-                                  usb_depth - 2,  // transfer count 16/32bit
+                                  usb_depth/2 - 1,  // transfer count 16/32bit
                                   true            // start immediately
             );
         }
@@ -217,9 +218,10 @@ void pico_fxusb2_setup()
     // USB DMA channel 1
     {
         dma_config[1] = dma_channel_get_default_config(dma_channel[1]);
-        channel_config_set_transfer_data_size(&dma_config[1], DMA_SIZE_8);
+        channel_config_set_transfer_data_size(&dma_config[1], DMA_SIZE_16);
         channel_config_set_read_increment(&dma_config[1], false);
         channel_config_set_write_increment(&dma_config[1], true);
+        channel_config_set_bswap(&dma_config[1], true);
 
         channel_config_set_dreq(&dma_config[1], pio_get_dreq(pio, sm, false));
         channel_config_set_chain_to(&dma_config[1], dma_channel[0]);
@@ -231,7 +233,7 @@ void pico_fxusb2_setup()
         dma_channel_configure(dma_channel[1], &dma_config[1],
                               &usb_buf[1][0], // dst
                               &pio->rxf[sm],  // src
-                              usb_depth,      // transfer count
+                              usb_depth/2,      // transfer count
                               false           // start immediately
         );
     }
@@ -350,6 +352,7 @@ void init_i2s()
         channel_config_set_transfer_data_size(&dma_config_i2s[0], DMA_SIZE_16);
         channel_config_set_read_increment(&dma_config_i2s[0], true);
         channel_config_set_write_increment(&dma_config_i2s[0], false);
+        channel_config_set_bswap(&dma_config_i2s[0], true);
 
         channel_config_set_dreq(&dma_config_i2s[0], pio_get_dreq(pio_i2s, sm_i2s, true));
         channel_config_set_chain_to(&dma_config_i2s[0], dma_channel_i2s[1]);
@@ -371,6 +374,7 @@ void init_i2s()
         channel_config_set_transfer_data_size(&dma_config_i2s[1], DMA_SIZE_16);
         channel_config_set_read_increment(&dma_config_i2s[1], true);
         channel_config_set_write_increment(&dma_config_i2s[1], false);
+        channel_config_set_bswap(&dma_config_i2s[1], true);
 
         channel_config_set_dreq(&dma_config_i2s[1], pio_get_dreq(pio_i2s, sm_i2s, true));
         channel_config_set_chain_to(&dma_config_i2s[1], dma_channel_i2s[0]);
@@ -542,7 +546,7 @@ int main()
         pio->inte0 = PIO_IRQ0_INTE_SM0_BITS;
 
         pio_sm_put(pio, sm_fx2_communication, 0);
-        pico_fxusb2_communication_program_init(pio, sm_fx2_communication, offset_fx2_communication, 12);
+        pico_fxusb2_communication_program_init(pio, sm_fx2_communication, offset_fx2_communication, pico_fx2_communication_pin_base);
         uint32_t fxusb2_received_data;
 
         do
